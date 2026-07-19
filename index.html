@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gym Tracker</title>
+    <!-- Tailwind CSS für schnelles, mobiles Styling -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        /* Verhindert das unschöne Scrollen/Bouncen auf iOS, wenn man scrollt */
+        body {
+            -webkit-tap-highlight-color: transparent;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans antialiased selection:bg-indigo-500">
+
+    <div class="max-w-md mx-auto min-h-screen p-4 flex flex-col justify-between">
+        
+        <!-- HEADER -->
+        <header class="py-4 border-b border-slate-800 flex justify-between items-center">
+            <h1 class="text-xl font-bold tracking-tight text-indigo-400">💪 Gym Log Prototyp</h1>
+            <button onclick="exportData()" class="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700">
+                JSON Export
+            </button>
+        </header>
+
+        <!-- MAIN CONTENT AREA -->
+        <main class="flex-grow py-6 flex flex-col justify-center">
+            
+            <!-- SCHRITT 1: ÜBUNG AUSWÄHLEN -->
+            <div id="step-select-exercise" class="space-y-4">
+                <h2 class="text-lg font-medium text-slate-300">Welche Übung startest du?</h2>
+                <div class="space-y-2">
+                    <label for="exercise-dropdown" class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Übung wählen</label>
+                    <select id="exercise-dropdown" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-4 text-lg focus:outline-none focus:border-indigo-500 appearance-none text-slate-100">
+                        <option value="Bankdrücken">🏋️‍♂️ Bankdrücken</option>
+                        <option value="Kniebeugen">🦵 Kniebeugen</option>
+                        <option value="Kreuzheben">🍑 Kreuzheben</option>
+                        <option value="Klimmzüge">🦅 Klimmzüge</option>
+                        <option value="Schulterdrücken">🚀 Schulterdrücken</option>
+                    </select>
+                </div>
+                <button onclick="startExercise()" class="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-98 transition text-white font-semibold rounded-xl p-4 text-lg mt-4 shadow-lg shadow-indigo-600/20">
+                    Übung starten
+                </button>
+            </div>
+
+            <!-- SCHRITT 2: SATZ EINGEBEN (DYNAMISCH) -->
+            <div id="step-log-set" class="hidden space-y-6">
+                <div class="bg-slate-800/50 border border-slate-800 p-4 rounded-xl flex justify-between items-center">
+                    <div>
+                        <span class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Aktuelle Übung</span>
+                        <h3 id="current-exercise-title" class="text-xl font-bold text-indigo-400">Übung</h3>
+                    </div>
+                    <div class="bg-indigo-600/10 border border-indigo-500/20 px-3 py-1 rounded-lg">
+                        <span class="text-indigo-400 font-bold text-sm">Satz <span id="current-set-number">1</span></span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <label for="weight-input" class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Gewicht (kg)</label>
+                        <input type="number" id="weight-input" pattern="[0-9]*" inputmode="decimal" placeholder="0" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-4 text-2xl text-center focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div class="space-y-2">
+                        <label for="reps-input" class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Wiederholungen</label>
+                        <input type="number" id="reps-input" pattern="[0-9]*" inputmode="numeric" placeholder="0" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-4 text-2xl text-center focus:outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+
+                <div class="space-y-3 pt-4">
+                    <button onclick="nextSet()" class="w-full bg-emerald-600 hover:bg-emerald-500 active:scale-98 transition text-white font-semibold rounded-xl p-4 text-lg shadow-lg shadow-emerald-600/10">
+                        Nächster Satz
+                    </button>
+                    <button onclick="finishExercise()" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 active:scale-98 transition text-slate-300 font-medium rounded-xl p-4 text-base">
+                        Übung beenden & speichern
+                    </button>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- FOOTER / LOG-VORSCHAU -->
+        <footer class="mt-auto pt-4 border-t border-slate-800">
+            <div class="text-center">
+                <p id="log-status" class="text-xs text-slate-500">Bisher keine Daten in dieser Session geloggt.</p>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- APP-LOGIK -->
+    <script>
+        // Speicherstrukturen für die laufende Session
+        let currentWorkout = {
+            date: new Date().toISOString().split('T')[0],
+            time: new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+            exercises: []
+        };
+
+        let activeExercise = {
+            name: "",
+            sets: []
+        };
+
+        let setCounter = 1;
+
+        // Dom-Elemente
+        const stepSelect = document.getElementById('step-select-exercise');
+        const stepLogSet = document.getElementById('step-log-set');
+        const currentExerciseTitle = document.getElementById('current-exercise-title');
+        const currentSetNumber = document.getElementById('current-set-number');
+        const weightInput = document.getElementById('weight-input');
+        const repsInput = document.getElementById('reps-input');
+        const logStatus = document.getElementById('log-status');
+
+        // Initialisiert eine neue Übung
+        function startExercise() {
+            const selectedExercise = document.getElementById('exercise-dropdown').value;
+            
+            activeExercise = {
+                name: selectedExercise,
+                sets: []
+            };
+            
+            setCounter = 1;
+            currentExerciseTitle.innerText = selectedExercise;
+            currentSetNumber.innerText = setCounter;
+            
+            // UI-Wechsel
+            stepSelect.classList.add('hidden');
+            stepLogSet.classList.remove('hidden');
+            
+            // Fokus auf Gewicht-Input setzen für schnellen Workflow
+            weightInput.focus();
+        }
+
+        // Sichert den aktuellen Satz und bereitet den nächsten vor
+        function nextSet() {
+            const weight = parseFloat(weightInput.value);
+            const reps = parseInt(repsInput.value);
+
+            if (!weight || !reps) {
+                alert("Bitte trage Gewicht und Wiederholungen ein.");
+                return;
+            }
+
+            // Satz zum aktuellen Übungs-Objekt hinzufügen
+            activeExercise.sets.push({
+                setNumber: setCounter,
+                weight: weight,
+                reps: reps
+            });
+
+            // UI für den nächsten Satz vorbereiten
+            setCounter++;
+            currentSetNumber.innerText = setCounter;
+            
+            // Komfort: Reps stehen lassen (oft macht man die gleichen), Gewicht stehen lassen, Fokus auf Reps
+            repsInput.focus();
+            repsInput.select(); // Text direkt markieren zum schnellen Überschreiben
+            
+            updateStatusText(`Satz ${setCounter - 1} für ${activeExercise.name} temporär gesichert.`);
+        }
+
+        // Schließt die Übung ab und speichert alles im localStorage
+        function finishExercise() {
+            // Falls im aktuellen Feld noch Daten stehen, die nicht über "Nächster Satz" abgefangen wurden:
+            const weight = parseFloat(weightInput.value);
+            const reps = parseInt(repsInput.value);
+            
+            if (weight && reps) {
+                activeExercise.sets.push({
+                    setNumber: setCounter,
+                    weight: weight,
+                    reps: reps
+                });
+            }
+
+            if (activeExercise.sets.length === 0) {
+                alert("Es wurden keine Sätze für diese Übung erfasst.");
+                return;
+            }
+
+            // Übung ins Workout pushen
+            currentWorkout.exercises.push(activeExercise);
+
+            // Gesamtes Workout im LocalStorage sichern / aktualisieren
+            const history = JSON.parse(localStorage.getItem('gym_history')) || [];
+            
+            // Wir überschreiben oder pushen das aktuelle Workout dieser Session
+            // Einfachheit halber pushen wir es hier als eigenständigen Eintrag hinein
+            history.push(currentWorkout);
+            localStorage.setItem('gym_history', JSON.stringify(history));
+
+            // Inputs zurücksetzen
+            weightInput.value = "";
+            repsInput.value = "";
+
+            // UI zurücksetzen
+            stepLogSet.classList.add('hidden');
+            stepSelect.classList.remove('hidden');
+
+            updateStatusText(`Erfolgreich gespeichert: ${activeExercise.name} (${activeExercise.sets.length} Sätze).`);
+        }
+
+        function updateStatusText(text) {
+            logStatus.innerText = text;
+        }
+
+        // Hilfsfunktion um die Daten als Datei zu exportieren (OneDrive/Cloud Zwischenschritt)
+        function exportData() {
+            const data = localStorage.getItem('gym_history');
+            if (!data) {
+                alert("Noch keine Daten im Speicher zum Exportieren vorhanden.");
+                return;
+            }
+            
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `gym-data-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+    </script>
+</body>
+</html>
