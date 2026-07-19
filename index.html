@@ -4,13 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Gym Tracker</title>
-    <!-- Tailwind CSS für schnelles, mobiles Styling -->
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
-        /* Verhindert das unschöne Scrollen/Bouncen auf iOS, wenn man scrollt */
-        body {
-            -webkit-tap-highlight-color: transparent;
-        }
+        body { -webkit-tap-highlight-color: transparent; }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-100 font-sans antialiased selection:bg-indigo-500">
@@ -20,9 +16,15 @@
         <!-- HEADER -->
         <header class="py-4 border-b border-slate-800 flex justify-between items-center">
             <h1 class="text-xl font-bold tracking-tight text-indigo-400">💪 Gym Log Prototyp</h1>
-            <button onclick="exportData()" class="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700">
-                JSON Export
-            </button>
+            <div class="flex gap-2">
+                <button onclick="exportData()" class="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700">
+                    JSON Export
+                </button>
+                <!-- NEU: Reset Button im Header -->
+                <button onclick="clearAllData()" class="text-xs bg-red-950/40 hover:bg-red-900/60 px-3 py-1.5 rounded-lg border border-red-900/50 text-red-400">
+                    Reset
+                </button>
+            </div>
         </header>
 
         <!-- MAIN CONTENT AREA -->
@@ -76,6 +78,10 @@
                     <button onclick="finishExercise()" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 active:scale-98 transition text-slate-300 font-medium rounded-xl p-4 text-base">
                         Übung beenden & speichern
                     </button>
+                    <!-- NEU: Abbrechen-Button ohne Speichern -->
+                    <button onclick="cancelExercise()" class="w-full bg-transparent hover:bg-slate-800/40 text-slate-500 hover:text-slate-400 text-sm font-medium rounded-xl p-2 transition">
+                        ✕ Übung abbrechen (nicht speichern)
+                    </button>
                 </div>
             </div>
 
@@ -92,21 +98,15 @@
 
     <!-- APP-LOGIK -->
     <script>
-        // Speicherstrukturen für die laufende Session
         let currentWorkout = {
             date: new Date().toISOString().split('T')[0],
             time: new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
             exercises: []
         };
 
-        let activeExercise = {
-            name: "",
-            sets: []
-        };
-
+        let activeExercise = { name: "", sets: [] };
         let setCounter = 1;
 
-        // Dom-Elemente
         const stepSelect = document.getElementById('step-select-exercise');
         const stepLogSet = document.getElementById('step-log-set');
         const currentExerciseTitle = document.getElementById('current-exercise-title');
@@ -115,28 +115,42 @@
         const repsInput = document.getElementById('reps-input');
         const logStatus = document.getElementById('log-status');
 
-        // Initialisiert eine neue Übung
         function startExercise() {
             const selectedExercise = document.getElementById('exercise-dropdown').value;
-            
-            activeExercise = {
-                name: selectedExercise,
-                sets: []
-            };
-            
+            activeExercise = { name: selectedExercise, sets: [] };
             setCounter = 1;
+            
             currentExerciseTitle.innerText = selectedExercise;
             currentSetNumber.innerText = setCounter;
             
-            // UI-Wechsel
+            // Felder auf leeres Preset setzen beim Start einer neuen Übung
+            weightInput.value = "";
+            repsInput.value = "";
+            
             stepSelect.classList.add('hidden');
             stepLogSet.classList.remove('hidden');
             
-            // Fokus auf Gewicht-Input setzen für schnellen Workflow
-            weightInput.focus();
+            setTimeout(() => weightInput.focus(), 50);
         }
 
-        // Sichert den aktuellen Satz und bereitet den nächsten vor
+        // NEU: Übung abbrechen, ohne den aktuellen Stand zu sichern
+        function cancelExercise() {
+            if (activeExercise.sets.length > 0) {
+                if (!confirm("Du hast für diese Übung bereits Sätze eingetragen. Möchtest du sie wirklich verwerfen?")) {
+                    return; // Abbrechen abbrechen, falls der User es sich anders überlegt
+                }
+            }
+            
+            // Inputs leeren
+            weightInput.value = "";
+            repsInput.value = "";
+            
+            // UI zurücksetzen
+            stepLogSet.classList.add('hidden');
+            stepSelect.classList.remove('hidden');
+            updateStatusText("Übung abgebrochen. Keine Daten gespeichert.");
+        }
+
         function nextSet() {
             const weight = parseFloat(weightInput.value);
             const reps = parseInt(repsInput.value);
@@ -146,30 +160,31 @@
                 return;
             }
 
-            // Satz zum aktuellen Übungs-Objekt hinzufügen
             activeExercise.sets.push({
                 setNumber: setCounter,
                 weight: weight,
                 reps: reps
             });
 
-            // UI für den nächsten Satz vorbereiten
             setCounter++;
             currentSetNumber.innerText = setCounter;
             
-            // Komfort: Reps stehen lassen (oft macht man die gleichen), Gewicht stehen lassen, Fokus auf Reps
-            repsInput.focus();
-            repsInput.select(); // Text direkt markieren zum schnellen Überschreiben
+            // OPTIMIERTER WORKFLOW: 
+            // 1. Felder leeren (bzw. auf 0/leer setzen)
+            weightInput.value = "";
+            repsInput.value = "";
             
-            updateStatusText(`Satz ${setCounter - 1} für ${activeExercise.name} temporär gesichert.`);
+            // 2. Fokus direkt wieder auf das Gewicht-Feld lenken
+            weightInput.focus();
+            
+            updateStatusText(`Satz ${setCounter - 1} gesichert.`);
         }
 
-        // Schließt die Übung ab und speichert alles im localStorage
         function finishExercise() {
-            // Falls im aktuellen Feld noch Daten stehen, die nicht über "Nächster Satz" abgefangen wurden:
             const weight = parseFloat(weightInput.value);
             const reps = parseInt(repsInput.value);
             
+            // Falls im letzten Satz noch was drin stand, automatisch mitnehmen
             if (weight && reps) {
                 activeExercise.sets.push({
                     setNumber: setCounter,
@@ -183,36 +198,39 @@
                 return;
             }
 
-            // Übung ins Workout pushen
             currentWorkout.exercises.push(activeExercise);
 
-            // Gesamtes Workout im LocalStorage sichern / aktualisieren
             const history = JSON.parse(localStorage.getItem('gym_history')) || [];
-            
-            // Wir überschreiben oder pushen das aktuelle Workout dieser Session
-            // Einfachheit halber pushen wir es hier als eigenständigen Eintrag hinein
             history.push(currentWorkout);
             localStorage.setItem('gym_history', JSON.stringify(history));
 
-            // Inputs zurücksetzen
             weightInput.value = "";
             repsInput.value = "";
 
-            // UI zurücksetzen
             stepLogSet.classList.add('hidden');
             stepSelect.classList.remove('hidden');
 
             updateStatusText(`Erfolgreich gespeichert: ${activeExercise.name} (${activeExercise.sets.length} Sätze).`);
         }
 
+        // NEU: Löschfunktion für den gesamten Speicher mit Sicherheitsabfrage
+        function clearAllData() {
+            const dynamicCheck = confirm("🚨 BIST DU DIR SICHER?\n\nDadurch werden ALLE auf diesem iPhone gespeicherten Trainingseinheiten unwiderruflich gelöscht. Exportiere vorher deine JSON, falls du ein Backup brauchst!");
+            
+            if (dynamicCheck) {
+                localStorage.removeItem('gym_history');
+                updateStatusText("Speicher wurde komplett geleert.");
+                alert("Alle lokalen Daten wurden gelöscht.");
+            }
+        }
+
         function updateStatusText(text) {
             logStatus.innerText = text;
         }
 
-        // Hilfsfunktion um die Daten als Datei zu exportieren (OneDrive/Cloud Zwischenschritt)
         function exportData() {
             const data = localStorage.getItem('gym_history');
-            if (!data) {
+            if (!data || JSON.parse(data).length === 0) {
                 alert("Noch keine Daten im Speicher zum Exportieren vorhanden.");
                 return;
             }
