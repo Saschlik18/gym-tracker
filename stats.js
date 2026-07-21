@@ -15,28 +15,32 @@ function renderStatistics() {
         return;
     }
 
-    // 1. Gruppieren nach Übungen
     const exerciseMap = {};
 
     history.forEach(workout => {
         const date = workout.date;
+        
+        if (!workout.exercises || !Array.isArray(workout.exercises)) return;
+
         workout.exercises.forEach(ex => {
+            if (!ex.name || !ex.sets || ex.sets.length === 0) return;
+
             if (!exerciseMap[ex.name]) {
                 exerciseMap[ex.name] = {
-                    count: 0,
-                    dataPoints: [] // { date, max1RM, avgWeight, totalReps }
+                    totalSetsCount: 0,
+                    dataPoints: []
                 };
             }
 
-            exerciseMap[ex.name].count += ex.sets.length;
+            exerciseMap[ex.name].totalSetsCount += ex.sets.length;
 
             let max1RM = 0;
             let totalWeightSum = 0;
             let totalReps = 0;
 
             ex.sets.forEach(set => {
-                const w = set.weight;
-                const r = set.reps;
+                const w = parseFloat(set.weight) || 0;
+                const r = parseInt(set.reps) || 0;
                 
                 // Epley 1RM Formel: w * (1 + r / 30)
                 const estimated1RM = w * (1 + r / 30);
@@ -59,14 +63,11 @@ function renderStatistics() {
         });
     });
 
-    // 2. Sortieren: Häufigste Übungen ganz oben (nach Anzahl der geloggten Sätze)
-    const sortedExercises = Object.keys(exerciseMap).sort((a, b) => exerciseMap[b].count - exerciseMap[a].count);
+    const sortedExercises = Object.keys(exerciseMap).sort((a, b) => exerciseMap[b].totalSetsCount - exerciseMap[a].totalSetsCount);
 
-    // 3. Karten und separate Diagramme erzeugen
     sortedExercises.forEach((exName, index) => {
         const exData = exerciseMap[exName];
 
-        // Chronologisch nach Datum sortieren
         exData.dataPoints.sort((a, b) => new Date(a.date) - new Date(b.date));
 
         const dates = exData.dataPoints.map(dp => dp.date);
@@ -74,7 +75,6 @@ function renderStatistics() {
         const avgValues = exData.dataPoints.map(dp => dp.avgWeight);
         const repsValues = exData.dataPoints.map(dp => dp.totalReps);
 
-        // UI-Block für eine Übung
         const card = document.createElement('div');
         card.className = "bg-slate-800/60 border border-slate-800 rounded-xl p-4 space-y-4";
         
@@ -85,10 +85,9 @@ function renderStatistics() {
         card.innerHTML = `
             <div class="flex justify-between items-center border-b border-slate-700/50 pb-2">
                 <h3 class="font-bold text-lg text-indigo-400">${exName}</h3>
-                <span class="text-xs bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2.5 py-1 rounded-full">${exData.count} Sätze</span>
+                <span class="text-xs bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2.5 py-1 rounded-full">${exData.totalSetsCount} Sätze gesamt</span>
             </div>
 
-            <!-- Chart 1: 1RM -->
             <div class="space-y-1">
                 <h4 class="text-xs font-semibold text-indigo-300 uppercase tracking-wider">One Rep Max (1RM)</h4>
                 <div class="w-full relative h-40">
@@ -96,7 +95,6 @@ function renderStatistics() {
                 </div>
             </div>
 
-            <!-- Chart 2: Ø Gewicht -->
             <div class="space-y-1 pt-2">
                 <h4 class="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Durchschnittliches Gewicht (kg)</h4>
                 <div class="w-full relative h-40">
@@ -104,7 +102,6 @@ function renderStatistics() {
                 </div>
             </div>
 
-            <!-- Chart 3: Gesamt-Wiederholungen -->
             <div class="space-y-1 pt-2">
                 <h4 class="text-xs font-semibold text-rose-400 uppercase tracking-wider">Gesamte Wiederholungen</h4>
                 <div class="w-full relative h-40">
@@ -114,7 +111,6 @@ function renderStatistics() {
         `;
         container.appendChild(card);
 
-        // Einzel-Diagramme erstellen
         createSingleLineChart(canvas1RM, dates, rmValues, '1RM (kg)', '#818cf8');
         createSingleLineChart(canvasAvg, dates, avgValues, 'Ø Gewicht (kg)', '#34d399');
         createSingleLineChart(canvasReps, dates, repsValues, 'Wiederholungen', '#f43f5e');

@@ -1,9 +1,12 @@
-let currentWorkout = {
-    date: new Date().toISOString().split('T')[0],
-    time: new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
-    exercises: []
-};
+function createNewWorkout() {
+    return {
+        date: new Date().toISOString().split('T')[0],
+        time: new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+        exercises: []
+    };
+}
 
+let currentWorkout = createNewWorkout();
 let activeExercise = { name: "", sets: [] };
 let setCounter = 1;
 
@@ -196,6 +199,9 @@ function finishExercise() {
     const history = JSON.parse(localStorage.getItem('gym_history')) || [];
     history.push(currentWorkout);
     localStorage.setItem('gym_history', JSON.stringify(history));
+
+    // Reset current workout for next session
+    currentWorkout = createNewWorkout();
 
     weightInput.value = "";
     repsInput.value = "";
