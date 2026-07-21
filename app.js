@@ -32,6 +32,7 @@ const sideMenu = document.getElementById('side-menu');
 
 const viewTracker = document.getElementById('view-tracker');
 const viewStats = document.getElementById('view-stats');
+const viewCalendar = document.getElementById('view-calendar');
 
 document.addEventListener('DOMContentLoaded', () => {
     loadExerciseDropdown();
@@ -66,13 +67,18 @@ function toggleMenu() {
 
 function showTab(tabName) {
     toggleMenu();
+    viewTracker.classList.add('hidden');
+    viewStats.classList.add('hidden');
+    viewCalendar.classList.add('hidden');
+
     if (tabName === 'tracker') {
-        viewStats.classList.add('hidden');
         viewTracker.classList.remove('hidden');
     } else if (tabName === 'stats') {
-        viewTracker.classList.add('hidden');
         viewStats.classList.remove('hidden');
         renderStatistics();
+    } else if (tabName === 'calendar') {
+        viewCalendar.classList.remove('hidden');
+        renderCalendar();
     }
 }
 
@@ -94,7 +100,7 @@ function loadExerciseDropdown() {
 function toggleAddExerciseInput() {
     const form = document.getElementById('custom-exercise-form');
     const input = document.getElementById('custom-exercise-input');
-    
+
     form.classList.toggle('hidden');
     if (!form.classList.contains('hidden')) {
         input.focus();
@@ -137,7 +143,7 @@ function saveCustomExercise() {
 
     loadExerciseDropdown();
     dropdownSelectValue('exercise-dropdown', name);
-    
+
     input.value = '';
     toggleAddExerciseInput();
     updateStatusText(`Neue Übung "${name}" hinzugefügt.`);
@@ -156,16 +162,16 @@ function startExercise() {
     }
     activeExercise = { name: selectedExercise, sets: [] };
     setCounter = 1;
-    
+
     currentExerciseTitle.innerText = selectedExercise;
     currentSetNumber.innerText = setCounter;
-    
+
     weightInput.value = "";
     repsInput.value = "";
-    
+
     stepSelect.classList.add('hidden');
     stepLogSet.classList.remove('hidden');
-    
+
     setTimeout(() => weightInput.focus(), 50);
 }
 
@@ -175,10 +181,10 @@ function cancelExercise() {
             return;
         }
     }
-    
+
     weightInput.value = "";
     repsInput.value = "";
-    
+
     stepLogSet.classList.add('hidden');
     stepSelect.classList.remove('hidden');
     updateStatusText("Übung abgebrochen. Keine Daten gespeichert.");
@@ -224,11 +230,11 @@ function nextSet() {
 
     setCounter++;
     currentSetNumber.innerText = setCounter;
-    
+
     weightInput.value = "";
     repsInput.value = "";
     weightInput.focus();
-    
+
     updateStatusText(`Satz ${setCounter - 1} gesichert.`);
 }
 
@@ -281,7 +287,7 @@ function finishExercise() {
 
 function clearAllData() {
     const dynamicCheck = confirm("🚨 BIST DU DIR SICHER?\n\nDadurch werden ALLE gespeicherten Trainingseinheiten unwiderruflich gelöscht.");
-    
+
     if (dynamicCheck) {
         localStorage.removeItem('gym_history');
         localStorage.removeItem('gym_custom_exercises');
@@ -290,6 +296,9 @@ function clearAllData() {
         alert("Alle lokalen Daten wurden gelöscht.");
         if (!viewStats.classList.contains('hidden')) {
             renderStatistics();
+        }
+        if (!viewCalendar.classList.contains('hidden')) {
+            renderCalendar();
         }
     }
 }
@@ -304,7 +313,7 @@ function exportData() {
         alert("Noch keine Daten im Speicher zum Exportieren vorhanden.");
         return;
     }
-    
+
     const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
