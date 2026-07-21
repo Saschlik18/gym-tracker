@@ -38,7 +38,7 @@ function renderStatistics() {
                 const w = set.weight;
                 const r = set.reps;
                 
-                // Epley 1RM Formel
+                // Epley 1RM Formel: w * (1 + r / 30)
                 const estimated1RM = w * (1 + r / 30);
                 if (estimated1RM > max1RM) {
                     max1RM = estimated1RM;
@@ -114,7 +114,7 @@ function renderStatistics() {
         `;
         container.appendChild(card);
 
-        // Helper-Funktion für saubere Einzel-Diagramme
+        // Einzel-Diagramme erstellen
         createSingleLineChart(canvas1RM, dates, rmValues, '1RM (kg)', '#818cf8');
         createSingleLineChart(canvasAvg, dates, avgValues, 'Ø Gewicht (kg)', '#34d399');
         createSingleLineChart(canvasReps, dates, repsValues, 'Wiederholungen', '#f43f5e');
@@ -143,7 +143,7 @@ function createSingleLineChart(canvasId, labels, data, labelName, color) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: false } // Ausblenden, da Überschrift vorhanden
+                legend: { display: false }
             },
             scales: {
                 x: {
