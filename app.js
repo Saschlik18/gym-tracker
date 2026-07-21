@@ -10,16 +10,17 @@ let currentWorkout = createNewWorkout();
 let activeExercise = { name: "", sets: [] };
 let setCounter = 1;
 
-// Default-Übungen, die fest im Code hinterlegt sind
 const DEFAULT_EXERCISES = [
-    "🏋️‍♂️ Bankdrücken",
-    "🦵 Kniebeugen",
-    "🍑 Kreuzheben",
-    "🦅 Klimmzüge",
-    "🚀 Schulterdrücken"
+    "Bankdrücken",
+    "Kniebeugen",
+    "Kreuzheben",
+    "Klimmzüge",
+    "Schulterdrücken"
 ];
 
-// DOM Elemente
+const MAX_WEIGHT_KG = 500;
+const MAX_REPS = 200;
+
 const stepSelect = document.getElementById('step-select-exercise');
 const stepLogSet = document.getElementById('step-log-set');
 const currentExerciseTitle = document.getElementById('current-exercise-title');
@@ -32,10 +33,32 @@ const sideMenu = document.getElementById('side-menu');
 const viewTracker = document.getElementById('view-tracker');
 const viewStats = document.getElementById('view-stats');
 
-// Beim Laden der Seite direkt die Übungen im Dropdown bereitstellen
 document.addEventListener('DOMContentLoaded', () => {
     loadExerciseDropdown();
 });
+
+function safeParseLocalStorage(key, fallback) {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    try {
+        const parsed = JSON.parse(raw);
+        return parsed !== null && parsed !== undefined ? parsed : fallback;
+    } catch (e) {
+        console.error(`Korrupte Daten in localStorage["${key}"]:`, e);
+        return fallback;
+    }
+}
+
+function safeSetLocalStorage(key, value) {
+    try {
+        localStorage.setItem(key, JSON.stringify(value));
+        return true;
+    } catch (e) {
+        console.error(`Fehler beim Speichern in localStorage["${key}"]:`, e);
+        alert("Fehler beim Speichern der Daten. Möglicherweise ist der Speicher voll.");
+        return false;
+    }
+}
 
 function toggleMenu() {
     sideMenu.classList.toggle('hidden');
@@ -49,16 +72,15 @@ function showTab(tabName) {
     } else if (tabName === 'stats') {
         viewTracker.classList.add('hidden');
         viewStats.classList.remove('hidden');
-        renderStatistics(); // Funktion aus stats.js aufrufen
+        renderStatistics();
     }
 }
 
-// Dropdown befüllen (Kombination aus Default + Custom aus LocalStorage)
 function loadExerciseDropdown() {
     const dropdown = document.getElementById('exercise-dropdown');
     dropdown.innerHTML = '';
 
-    const customExercises = JSON.parse(localStorage.getItem('gym_custom_exercises')) || [];
+    const customExercises = safeParseLocalStorage('gym_custom_exercises', []);
     const allExercises = [...DEFAULT_EXERCISES, ...customExercises];
 
     allExercises.forEach(ex => {
@@ -69,7 +91,6 @@ function loadExerciseDropdown() {
     });
 }
 
-// Eingabefeld ein-/ausblenden
 function toggleAddExerciseInput() {
     const form = document.getElementById('custom-exercise-form');
     const input = document.getElementById('custom-exercise-input');
@@ -82,7 +103,13 @@ function toggleAddExerciseInput() {
     }
 }
 
-// Neue Übung speichern
+function normalizeExerciseName(name) {
+    return name
+        .replace(/\s+/g, '')
+        .trim()
+        .toLowerCase();
+}
+
 function saveCustomExercise() {
     const input = document.getElementById('custom-exercise-input');
     const name = input.value.trim();
@@ -92,23 +119,28 @@ function saveCustomExercise() {
         return;
     }
 
-    const formattedName = name.startsWith('💪') ? name : `💪 ${name}`;
-    const customExercises = JSON.parse(localStorage.getItem('gym_custom_exercises')) || [];
+    const customExercises = safeParseLocalStorage('gym_custom_exercises', []);
 
-    if (DEFAULT_EXERCISES.includes(formattedName) || customExercises.includes(formattedName)) {
+    const normalizedNew = normalizeExerciseName(name);
+    const allExisting = [...DEFAULT_EXERCISES, ...customExercises];
+    const isDuplicate = allExisting.some(ex => normalizeExerciseName(ex) === normalizedNew);
+
+    if (isDuplicate) {
         alert('Diese Übung existiert bereits!');
         return;
     }
 
-    customExercises.push(formattedName);
-    localStorage.setItem('gym_custom_exercises', JSON.stringify(customExercises));
+    customExercises.push(name);
+    if (!safeSetLocalStorage('gym_custom_exercises', customExercises)) {
+        return;
+    }
 
     loadExerciseDropdown();
-    dropdownSelectValue('exercise-dropdown', formattedName);
+    dropdownSelectValue('exercise-dropdown', name);
     
     input.value = '';
     toggleAddExerciseInput();
-    updateStatusText(`Neue Übung "${formattedName}" hinzugefügt.`);
+    updateStatusText(`Neue Übung "${name}" hinzugefügt.`);
 }
 
 function dropdownSelectValue(dropdownId, value) {
@@ -152,12 +184,35 @@ function cancelExercise() {
     updateStatusText("Übung abgebrochen. Keine Daten gespeichert.");
 }
 
+function validateSetInput(weight, reps) {
+    if (weightInput.value.trim() === "" || repsInput.value.trim() === "") {
+        return { valid: false, message: "Bitte trage Gewicht und Wiederholungen ein." };
+    }
+    if (isNaN(weight) || isNaN(reps)) {
+        return { valid: false, message: "Bitte gültige Zahlen für Gewicht und Wiederholungen eintragen." };
+    }
+    if (weight < 0 || reps < 0) {
+        return { valid: false, message: "Gewicht und Wiederholungen dürfen nicht negativ sein." };
+    }
+    if (reps === 0) {
+        return { valid: false, message: "Wiederholungen müssen mindestens 1 sein." };
+    }
+    if (weight > MAX_WEIGHT_KG) {
+        return { valid: false, message: `Gewicht darf ${MAX_WEIGHT_KG} kg nicht überschreiten. Bitte prüfe deine Eingabe.` };
+    }
+    if (reps > MAX_REPS) {
+        return { valid: false, message: `Wiederholungen dürfen ${MAX_REPS} nicht überschreiten. Bitte prüfe deine Eingabe.` };
+    }
+    return { valid: true };
+}
+
 function nextSet() {
     const weight = parseFloat(weightInput.value);
     const reps = parseInt(repsInput.value);
 
-    if (!weight || !reps) {
-        alert("Bitte trage Gewicht und Wiederholungen ein.");
+    const validation = validateSetInput(weight, reps);
+    if (!validation.valid) {
+        alert(validation.message);
         return;
     }
 
@@ -178,10 +233,19 @@ function nextSet() {
 }
 
 function finishExercise() {
-    const weight = parseFloat(weightInput.value);
-    const reps = parseInt(repsInput.value);
-    
-    if (weight && reps) {
+    const weightRaw = weightInput.value.trim();
+    const repsRaw = repsInput.value.trim();
+
+    if (weightRaw !== "" || repsRaw !== "") {
+        const weight = parseFloat(weightInput.value);
+        const reps = parseInt(repsInput.value);
+        const validation = validateSetInput(weight, reps);
+
+        if (!validation.valid) {
+            alert(validation.message + "\n\nÜbung wurde noch nicht beendet — bitte korrigiere die Eingabe oder leere beide Felder, um den letzten Satz zu verwerfen.");
+            return;
+        }
+
         activeExercise.sets.push({
             setNumber: setCounter,
             weight: weight,
@@ -196,11 +260,14 @@ function finishExercise() {
 
     currentWorkout.exercises.push(activeExercise);
 
-    const history = JSON.parse(localStorage.getItem('gym_history')) || [];
+    const history = safeParseLocalStorage('gym_history', []);
     history.push(currentWorkout);
-    localStorage.setItem('gym_history', JSON.stringify(history));
 
-    // Reset current workout for next session
+    if (!safeSetLocalStorage('gym_history', history)) {
+        currentWorkout.exercises.pop();
+        return;
+    }
+
     currentWorkout = createNewWorkout();
 
     weightInput.value = "";
@@ -232,13 +299,13 @@ function updateStatusText(text) {
 }
 
 function exportData() {
-    const data = localStorage.getItem('gym_history');
-    if (!data || JSON.parse(data).length === 0) {
+    const data = safeParseLocalStorage('gym_history', []);
+    if (!data || data.length === 0) {
         alert("Noch keine Daten im Speicher zum Exportieren vorhanden.");
         return;
     }
     
-    const blob = new Blob([data], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

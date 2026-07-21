@@ -1,15 +1,15 @@
-let activeCharts = {}; 
+let activeCharts = {};
+let openStatesByExercise = {};
+let chartKeyToExercise = {};
 
 function renderStatistics() {
     const container = document.getElementById('stats-container');
-    container.innerHTML = '';
 
-    Object.values(activeCharts).forEach(chart => chart.destroy());
-    activeCharts = {};
-
-    const history = JSON.parse(localStorage.getItem('gym_history')) || [];
+    const history = safeParseLocalStorage('gym_history', []);
 
     if (history.length === 0) {
+        Object.values(activeCharts).forEach(chart => chart.destroy());
+        activeCharts = {};
         container.innerHTML = `<p class="text-slate-500 text-sm text-center py-8">Noch keine Daten vorhanden. Führe erst Übungen aus und speichere sie!</p>`;
         return;
     }
@@ -62,6 +62,24 @@ function renderStatistics() {
 
     const sortedExercises = Object.keys(exerciseMap).sort((a, b) => exerciseMap[b].totalSetsCount - exerciseMap[a].totalSetsCount);
 
+    const existingDetails = container.querySelectorAll('details[data-exercise-name]');
+    existingDetails.forEach(d => {
+        openStatesByExercise[d.dataset.exerciseName] = d.open;
+    });
+
+    const stillPresent = new Set(sortedExercises);
+    Object.keys(chartKeyToExercise).forEach(canvasId => {
+        if (!stillPresent.has(chartKeyToExercise[canvasId])) {
+            if (activeCharts[canvasId]) {
+                activeCharts[canvasId].destroy();
+                delete activeCharts[canvasId];
+            }
+            delete chartKeyToExercise[canvasId];
+        }
+    });
+
+    container.innerHTML = '';
+
     sortedExercises.forEach((exName, index) => {
         const exData = exerciseMap[exName];
         exData.dataPoints.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -71,9 +89,13 @@ function renderStatistics() {
         const avgValues = exData.dataPoints.map(dp => dp.avgWeight);
         const repsValues = exData.dataPoints.map(dp => dp.totalReps);
 
-        // Nutzung von <details> für einklappbare Karten
         const detailsEl = document.createElement('details');
         detailsEl.className = "bg-slate-800/60 border border-slate-800 rounded-xl overflow-hidden group transition-all";
+        detailsEl.dataset.exerciseName = exName;
+
+        if (openStatesByExercise.hasOwnProperty(exName)) {
+            detailsEl.open = openStatesByExercise[exName];
+        }
         
         const canvas1RM = `chart-1rm-${index}`;
         const canvasAvg = `chart-avg-${index}`;
@@ -113,23 +135,40 @@ function renderStatistics() {
         `;
         container.appendChild(detailsEl);
 
-        createSingleLineChart(canvas1RM, dates, rmValues, '1RM (kg)', '#818cf8');
-        createSingleLineChart(canvasAvg, dates, avgValues, 'Ø Gewicht (kg)', '#34d399');
-        createSingleLineChart(canvasReps, dates, repsValues, 'Wiederholungen', '#f43f5e');
+        upsertLineChart(canvas1RM, dates, rmValues, '1RM (kg)', '#818cf8', exName);
+        upsertLineChart(canvasAvg, dates, avgValues, 'Ø Gewicht (kg)', '#34d399', exName);
+        upsertLineChart(canvasReps, dates, repsValues, 'Wiederholungen', '#f43f5e', exName);
     });
 }
 
-// Steuerungsfunktion für "Alle ausklappen / einklappen"
 function toggleAllStats(expand) {
     const allDetails = document.querySelectorAll('#stats-container details');
     allDetails.forEach(detail => {
         detail.open = expand;
+        if (detail.dataset.exerciseName) {
+            openStatesByExercise[detail.dataset.exerciseName] = expand;
+        }
     });
 }
 
-function createSingleLineChart(canvasId, labels, data, labelName, color) {
-    const ctx = document.getElementById(canvasId).getContext('2d');
-    
+function upsertLineChart(canvasId, labels, data, labelName, color, exerciseName) {
+    const canvasEl = document.getElementById(canvasId);
+    if (!canvasEl) return;
+
+    chartKeyToExercise[canvasId] = exerciseName;
+
+    if (activeCharts[canvasId]) {
+        const chart = activeCharts[canvasId];
+        chart.data.labels = labels;
+        chart.data.datasets[0].data = data;
+        chart.data.datasets[0].label = labelName;
+        chart.data.datasets[0].borderColor = color;
+        chart.data.datasets[0].backgroundColor = color;
+        chart.update();
+        return;
+    }
+
+    const ctx = canvasEl.getContext('2d');
     activeCharts[canvasId] = new Chart(ctx, {
         type: 'line',
         data: {
