@@ -1,15 +1,15 @@
 let activeCharts = {};
 let openStatesByExercise = {};
-let chartKeyToExercise = {};
 
 function renderStatistics() {
     const container = document.getElementById('stats-container');
 
     const history = safeParseLocalStorage('gym_history', []);
 
+    Object.values(activeCharts).forEach(chart => chart.destroy());
+    activeCharts = {};
+
     if (history.length === 0) {
-        Object.values(activeCharts).forEach(chart => chart.destroy());
-        activeCharts = {};
         container.innerHTML = `<p class="text-slate-500 text-sm text-center py-8">Noch keine Daten vorhanden. Führe erst Übungen aus und speichere sie!</p>`;
         return;
     }
@@ -39,7 +39,7 @@ function renderStatistics() {
             ex.sets.forEach(set => {
                 const w = parseFloat(set.weight) || 0;
                 const r = parseInt(set.reps) || 0;
-                
+
                 const estimated1RM = w * (1 + r / 30);
                 if (estimated1RM > max1RM) {
                     max1RM = estimated1RM;
@@ -67,17 +67,6 @@ function renderStatistics() {
         openStatesByExercise[d.dataset.exerciseName] = d.open;
     });
 
-    const stillPresent = new Set(sortedExercises);
-    Object.keys(chartKeyToExercise).forEach(canvasId => {
-        if (!stillPresent.has(chartKeyToExercise[canvasId])) {
-            if (activeCharts[canvasId]) {
-                activeCharts[canvasId].destroy();
-                delete activeCharts[canvasId];
-            }
-            delete chartKeyToExercise[canvasId];
-        }
-    });
-
     container.innerHTML = '';
 
     sortedExercises.forEach((exName, index) => {
@@ -96,7 +85,7 @@ function renderStatistics() {
         if (openStatesByExercise.hasOwnProperty(exName)) {
             detailsEl.open = openStatesByExercise[exName];
         }
-        
+
         const canvas1RM = `chart-1rm-${index}`;
         const canvasAvg = `chart-avg-${index}`;
         const canvasReps = `chart-reps-${index}`;
@@ -135,9 +124,9 @@ function renderStatistics() {
         `;
         container.appendChild(detailsEl);
 
-        upsertLineChart(canvas1RM, dates, rmValues, '1RM (kg)', '#818cf8', exName);
-        upsertLineChart(canvasAvg, dates, avgValues, 'Ø Gewicht (kg)', '#34d399', exName);
-        upsertLineChart(canvasReps, dates, repsValues, 'Wiederholungen', '#f43f5e', exName);
+        createLineChart(canvas1RM, dates, rmValues, '1RM (kg)', '#818cf8');
+        createLineChart(canvasAvg, dates, avgValues, 'Ø Gewicht (kg)', '#34d399');
+        createLineChart(canvasReps, dates, repsValues, 'Wiederholungen', '#f43f5e');
     });
 }
 
@@ -151,22 +140,9 @@ function toggleAllStats(expand) {
     });
 }
 
-function upsertLineChart(canvasId, labels, data, labelName, color, exerciseName) {
+function createLineChart(canvasId, labels, data, labelName, color) {
     const canvasEl = document.getElementById(canvasId);
     if (!canvasEl) return;
-
-    chartKeyToExercise[canvasId] = exerciseName;
-
-    if (activeCharts[canvasId]) {
-        const chart = activeCharts[canvasId];
-        chart.data.labels = labels;
-        chart.data.datasets[0].data = data;
-        chart.data.datasets[0].label = labelName;
-        chart.data.datasets[0].borderColor = color;
-        chart.data.datasets[0].backgroundColor = color;
-        chart.update();
-        return;
-    }
 
     const ctx = canvasEl.getContext('2d');
     activeCharts[canvasId] = new Chart(ctx, {
