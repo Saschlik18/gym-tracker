@@ -1,10 +1,9 @@
-let activeCharts = {}; // Speichert Chart-Instanzen zum Aufräumen beim Neurendern
+let activeCharts = {}; 
 
 function renderStatistics() {
     const container = document.getElementById('stats-container');
     container.innerHTML = '';
 
-    // Bestehende Charts zerstören, um Speicherlecks und Überlagerungen zu verhindern
     Object.values(activeCharts).forEach(chart => chart.destroy());
     activeCharts = {};
 
@@ -19,7 +18,6 @@ function renderStatistics() {
 
     history.forEach(workout => {
         const date = workout.date;
-        
         if (!workout.exercises || !Array.isArray(workout.exercises)) return;
 
         workout.exercises.forEach(ex => {
@@ -42,7 +40,6 @@ function renderStatistics() {
                 const w = parseFloat(set.weight) || 0;
                 const r = parseInt(set.reps) || 0;
                 
-                // Epley 1RM Formel: w * (1 + r / 30)
                 const estimated1RM = w * (1 + r / 30);
                 if (estimated1RM > max1RM) {
                     max1RM = estimated1RM;
@@ -67,7 +64,6 @@ function renderStatistics() {
 
     sortedExercises.forEach((exName, index) => {
         const exData = exerciseMap[exName];
-
         exData.dataPoints.sort((a, b) => new Date(a.date) - new Date(b.date));
 
         const dates = exData.dataPoints.map(dp => dp.date);
@@ -75,45 +71,59 @@ function renderStatistics() {
         const avgValues = exData.dataPoints.map(dp => dp.avgWeight);
         const repsValues = exData.dataPoints.map(dp => dp.totalReps);
 
-        const card = document.createElement('div');
-        card.className = "bg-slate-800/60 border border-slate-800 rounded-xl p-4 space-y-4";
+        // Nutzung von <details> für einklappbare Karten
+        const detailsEl = document.createElement('details');
+        detailsEl.className = "bg-slate-800/60 border border-slate-800 rounded-xl overflow-hidden group transition-all";
         
         const canvas1RM = `chart-1rm-${index}`;
         const canvasAvg = `chart-avg-${index}`;
         const canvasReps = `chart-reps-${index}`;
 
-        card.innerHTML = `
-            <div class="flex justify-between items-center border-b border-slate-700/50 pb-2">
-                <h3 class="font-bold text-lg text-indigo-400">${exName}</h3>
-                <span class="text-xs bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2.5 py-1 rounded-full">${exData.totalSetsCount} Sätze gesamt</span>
-            </div>
-
-            <div class="space-y-1">
-                <h4 class="text-xs font-semibold text-indigo-300 uppercase tracking-wider">One Rep Max (1RM)</h4>
-                <div class="w-full relative h-40">
-                    <canvas id="${canvas1RM}"></canvas>
+        detailsEl.innerHTML = `
+            <summary class="flex justify-between items-center p-4 cursor-pointer hover:bg-slate-800/80 transition select-none list-none">
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-400 group-open:rotate-90 transition-transform duration-200 text-xs">▶</span>
+                    <h3 class="font-bold text-base text-indigo-400">${exName}</h3>
                 </div>
-            </div>
+                <span class="text-xs bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2.5 py-1 rounded-full">${exData.totalSetsCount} Sätze</span>
+            </summary>
 
-            <div class="space-y-1 pt-2">
-                <h4 class="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Durchschnittliches Gewicht (kg)</h4>
-                <div class="w-full relative h-40">
-                    <canvas id="${canvasAvg}"></canvas>
+            <div class="p-4 pt-1 space-y-4 border-t border-slate-800/60">
+                <div class="space-y-1">
+                    <h4 class="text-xs font-semibold text-indigo-300 uppercase tracking-wider">One Rep Max (1RM)</h4>
+                    <div class="w-full relative h-36">
+                        <canvas id="${canvas1RM}"></canvas>
+                    </div>
                 </div>
-            </div>
 
-            <div class="space-y-1 pt-2">
-                <h4 class="text-xs font-semibold text-rose-400 uppercase tracking-wider">Gesamte Wiederholungen</h4>
-                <div class="w-full relative h-40">
-                    <canvas id="${canvasReps}"></canvas>
+                <div class="space-y-1 pt-2">
+                    <h4 class="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Durchschnittliches Gewicht (kg)</h4>
+                    <div class="w-full relative h-36">
+                        <canvas id="${canvasAvg}"></canvas>
+                    </div>
+                </div>
+
+                <div class="space-y-1 pt-2">
+                    <h4 class="text-xs font-semibold text-rose-400 uppercase tracking-wider">Gesamte Wiederholungen</h4>
+                    <div class="w-full relative h-36">
+                        <canvas id="${canvasReps}"></canvas>
+                    </div>
                 </div>
             </div>
         `;
-        container.appendChild(card);
+        container.appendChild(detailsEl);
 
         createSingleLineChart(canvas1RM, dates, rmValues, '1RM (kg)', '#818cf8');
         createSingleLineChart(canvasAvg, dates, avgValues, 'Ø Gewicht (kg)', '#34d399');
         createSingleLineChart(canvasReps, dates, repsValues, 'Wiederholungen', '#f43f5e');
+    });
+}
+
+// Steuerungsfunktion für "Alle ausklappen / einklappen"
+function toggleAllStats(expand) {
+    const allDetails = document.querySelectorAll('#stats-container details');
+    allDetails.forEach(detail => {
+        detail.open = expand;
     });
 }
 
